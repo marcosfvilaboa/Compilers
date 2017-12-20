@@ -1,0 +1,103 @@
+import java_cup.runtime.*;
+import java.io.*;
+
+parser code {:
+    static Integer correct_strings = 0;
+    static Integer correct_reserved_words = 0;
+    static Integer correct_identifiers = 0;
+    static Integer num_global_variables = 0;
+    static Integer num_blocks = 0;
+    static parser Parser;
+    static circuit yy_cir;
+
+    public static void main (String argv []) throws IOException {
+
+        if (argv.length != 1) {
+            System.out.println("Usage:");
+            System.out.println("\tjava circuit filename.cir");
+            return ;
+        } else {
+            String fInName = argv [0];
+            if (!fInName.endsWith(".cir")) fInName = fInName + ".cir";
+            
+            yy_cir = new circuit(new FileInputStream(fInName));
+            try {
+                //Create sintantic analyzer
+                Parser = new parser(yy_cir);
+            
+                //Parsing file
+                Parser.parse();
+            
+                // Show stats
+                System.out.println("\n\nStats\n------\n");
+                System.out.println("Strings: " + correct_strings);
+                System.out.println("Reserved words: " + correct_reserved_words);
+                System.out.println("Identifiers: " + correct_identifiers);
+                System.out.println("Number of global variables: " + num_global_variables);
+                System.out.println("Number of blocks: " + num_blocks);
+
+            } catch (Exception ioe) {
+                System.out.println("Error analizing ");
+            }
+        }
+    }//End main
+:};
+
+// Terminals
+terminal CIRCUIT, SIGNAL, SIZE, EQUALS, BLOCK, DESCRIPTION, INPUT, OUTPUT, BEGIN, END, LOCAL, AND, OR, NOT;
+terminal EQUALSIGN, SEMICOLON, OPEN_BRK, CLSE_BRK;
+terminal Integer NUMBER;
+terminal String STRING, HEXANUMBER, ID;
+
+// Non terminals
+non terminal cirFile, beginCir, endCir;
+non terminal globalSignsList, blockList, optionalDescription, optionalInputList, outputSignsList, optionalLocalList, body, instrList;
+non terminal numHex, globalSign, equalGlobalSign, blockId, expr, binaryOp;
+
+// Precedences
+precedence left AND, OR;
+precedence left NOT;
+
+// Grammar rules
+cirFile ::= beginCir globalSignsList blockList endCir;
+
+beginCir ::=   CIRCUIT ID SEMICOLON
+                | CIRCUIT SEMICOLON {: System.out.println("Syntax error at " + (parser.yy_cir.getLine()-1) + ": no name definition for circuit"); :};
+
+endCir ::= END ID SEMICOLON
+            | END SEMICOLON {: System.out.println("Syntax error at " + parser.yy_cir.getLine() + ": no name definition for circuit"); :};
+
+globalSignsList ::= | globalSign globalSignsList 
+                    {: parser.num_global_variables++; :};
+globalSign ::= SIGNAL ID SIZE numHex equalGlobalSign SEMICOLON;
+equalGlobalSign ::= | EQUALS numHex;
+
+blockList ::=   blockId optionalDescription optionalInputList 
+                outputSignsList optionalLocalList body
+                {: parser.num_blocks++; :}
+                | blockId optionalDescription optionalInputList
+                outputSignsList optionalLocalList body blockList
+                {: parser.num_blocks++; :}
+                | blockId optionalDescription optionalInputList 
+                optionalLocalList body
+                {: parser.num_blocks++; System.out.println("Syntax error at " + parser.yy_cir.getLine() + ": block has no output signals"); :};
+
+blockId ::= BLOCK ID 
+            | BLOCK {: System.out.println("Syntax error at " + parser.yy_cir.getLine() + ": block has no name"); :};
+
+optionalDescription ::= | DESCRIPTION STRING SEMICOLON 
+						| DESCRIPTION STRING /* To continue parsing in case "new line character found" lexical error */;
+optionalInputList ::= | INPUT globalSign optionalInputList;
+outputSignsList ::= OUTPUT globalSign | OUTPUT globalSign outputSignsList;
+optionalLocalList ::= | LOCAL globalSign optionalLocalList;
+
+body ::= BEGIN instrList END BLOCK SEMICOLON;
+
+instrList ::=   ID EQUALSIGN expr SEMICOLON 
+                | ID EQUALSIGN expr SEMICOLON instrList;
+
+expr ::=    ID | numHex | expr binaryOp expr 
+            | NOT expr | OPEN_BRK expr CLSE_BRK;
+
+binaryOp ::= AND | OR;
+numHex ::= NUMBER | HEXANUMBER;
