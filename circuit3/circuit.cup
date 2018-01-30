@@ -1,0 +1,427 @@
+import java.io.*;
+import java.text.*;
+import java.lang.String;
+import java.util.*;
+
+action code {:
+
+Integer inputsCounter = 0;
+Integer outputsCounter = 0;
+Integer localsCounter = 0;
+Stack<String> signalRefList = new Stack<String>();
+String keyBL;
+
+// method to compare two stacks AND CLEAR THEM. 
+// method needs all the elements of the stack unique and the first stack greater or equal to the second. 
+// return stack with elements that are different
+Stack<String> compareStacks(Stack<String> sL, Stack<String> sLRef) {
+	Stack<String> sLNotRef = new Stack<String>();
+	while (!sL.isEmpty()) {		
+		String elem = sL.pop();
+		if (!sLRef.contains(elem)) {
+			sLNotRef.push(elem);
+		}
+	}
+	sLRef.clear();
+	return sLNotRef;
+}
+
+:}
+
+parser code {:
+
+// class for table of block elements
+class Signals {
+	private Integer numInputSignals;
+	private Integer numOutputSignals;
+	private Integer numLocalSignals;
+
+	public Signals() {
+		numInputSignals = 0;
+		numOutputSignals = 0;
+		numLocalSignals = 0;
+	}
+
+	/* setters */
+	public void setNumIS(Integer n) {
+		this.numInputSignals = n;
+	}
+	public void setNumOS(Integer n) {
+		this.numOutputSignals = n;
+	}
+	public void setNumLS(Integer n) {
+		this.numLocalSignals = n;
+	}
+
+	/* getters */ 
+	public Integer getNumIS() {
+		return this.numInputSignals;
+	}
+	public Integer getNumOS() {
+		return this.numOutputSignals;
+	}
+	public Integer getNumLS() {
+		return this.numLocalSignals;
+	}
+
+	// override to print results
+	public String toString() {
+		String s;
+
+		s = "Number of input signals: " + this.numInputSignals;
+		s = s + "\nNumber of output signals: " + this.numOutputSignals;
+		s = s + "\nNumber of local signals: " + this.numLocalSignals;
+
+		return s;
+	}
+}
+
+static Integer correct_strings;
+static Integer correct_reserved_words;
+static Integer correct_identifiers;
+static Integer defined_blocks;
+static Integer defined_global_vars;
+
+static Hashtable<String, Signals> blockList;
+static Hashtable<String, Stack<String>> signalList;
+
+static parser Scanner;
+static circuit yy;
+
+
+public static void main (String argv [])
+  throws java.io.IOException {
+  
+  if (argv.length != 1) {
+    System.out.println("Usage:");
+    System.out.println("\tjava circuit filename.cir");
+    return ;
+  } else {
+    String fInName = argv [0];
+    if (!fInName.endsWith(".cir")) fInName = fInName + ".cir";
+
+    correct_strings=0; 
+    correct_reserved_words=0;
+    correct_identifiers=0;
+    defined_blocks=0;
+    defined_global_vars=0;
+
+
+    blockList = new Hashtable<String, Signals>();
+    signalList = new Hashtable<String, Stack<String>>();
+   
+
+    try {
+        //Create lexical analyzer
+    	yy = new circuit (new FileInputStream(fInName));
+    } catch (Exception ioe) {
+      	System.out.println("Error: file " + fInName + " does not exist");
+       	return;
+    }
+        
+    try {
+    	Scanner = new parser(yy);
+    	Scanner.parse();
+
+        // Show stats
+		System.out.println("\n\nStats\n------\n");
+		System.out.println("Strings: " + correct_strings);
+		System.out.println("Reserved words: " + correct_reserved_words);
+		System.out.println("Identifiers: " + correct_identifiers);
+		System.out.println("Number of global variables: " + defined_global_vars);
+		System.out.println("Number of blocks: " + defined_blocks);
+		// Blocks founded and details of them
+		Enumeration en = blockList.keys();
+	    while (en.hasMoreElements()) {
+	      	String key = (String) en.nextElement();
+	      	System.out.println("\nBlock name: " + key);
+	      	System.out.println(blockList.get(key).toString());
+	    }
+
+    } catch (Exception ioe) {
+    	System.out.println("Error parsing: file " + fInName );
+    }
+        
+  }
+} //End main
+:};
+
+// Terminals
+terminal TK_CIRCUIT, TK_SIGNAL, TK_SIZE, TK_EQUALS, TK_BLOCK;
+terminal TK_DESCRIPTION, TK_INPUT, TK_OUTPUT, TK_BEGIN, TK_END;
+terminal TK_LOCAL, TK_AND, TK_OR, TK_NOT, TK_NUMBER;
+terminal String TK_IDENTIFIER;
+terminal TK_EQUAL, TK_SEMICOLON;
+terminal TK_LPAR, TK_RPAR, TK_STRING;
+
+// Non terminals
+non terminal file, file_header, file_finish, file_body, global_vars, block_list;
+non terminal String var_definition;
+non terminal block_definition;
+non terminal String block_header;
+non terminal input_vars, output_vars, local_vars;
+non terminal block_body, instruction_list, instruction, expression;
+
+precedence left TK_AND, TK_OR;
+precedence right TK_NOT;
+
+
+// Grammar rules
+file ::= file_header:e1 file_body file_finish:e2
+		{:
+			if (!e1.equals(e2)) System.out.println("Error at line " + parser.yy.getLine() + ": circuit name does not match in the beginning and end statements."); 
+		:}
+	| error
+	{: System.out.println("Error at line " + parser.yy.getLine() + ": circuit definition is not correct"); :}
+	;
+
+file_header ::= TK_CIRCUIT TK_IDENTIFIER:e1 TK_SEMICOLON
+				{:					
+					RESULT = e1;
+				:}
+	| TK_CIRCUIT TK_SEMICOLON
+		{: 
+			System.out.println("Syntax error at " + (parser.yy.getLine() - 1) + ": no name definition for circuit"); 
+			RESULT = ' ';
+		:}
+	;
+
+file_finish ::= TK_END TK_IDENTIFIER:e1 TK_SEMICOLON
+				{:
+					RESULT = e1;					
+				:}
+	| TK_END TK_SEMICOLON
+		{: 
+			System.out.println("Syntax error at " + parser.yy.getLine() + ": no name definition for circuit"); 
+			RESULT = ' ';
+		:}
+	;
+	
+file_body ::= global_vars block_list
+	;
+
+global_vars ::= 
+	| global_vars var_definition {: parser.defined_global_vars++; :}
+	;
+	
+var_definition ::= TK_SIGNAL TK_IDENTIFIER:e1 TK_SIZE TK_NUMBER:e2 TK_EQUALS TK_NUMBER TK_SEMICOLON
+		{: 	
+			if ((Integer)e2<=0) System.out.println("Error at line " + parser.yy.getLine() + ": the signal size must be greater than 0");
+			RESULT = e1; 
+		:}
+	| TK_SIGNAL TK_IDENTIFIER:e1 TK_SIZE TK_NUMBER:e2 TK_SEMICOLON
+		{: 	
+			if ((Integer)e2<=0) System.out.println("Error at line " + parser.yy.getLine() + ": the signal size must be greater than 0");
+			RESULT = e1; 
+		:}
+	;
+
+block_list ::= block_definition {: parser.defined_blocks++; :}
+	| block_list block_definition {: parser.defined_blocks++; :}
+	| error
+	{: System.out.println("Error at line " + parser.yy.getLine() + ": no block definition found"); :}
+	;
+
+block_definition ::= block_header input_vars output_vars local_vars block_body
+					{:
+						if (keyBL!=null) {
+							parser.Signals s = parser.new Signals();
+							s.setNumIS(inputsCounter);
+							s.setNumOS(outputsCounter);
+							s.setNumLS(localsCounter);
+							inputsCounter = 0;
+							outputsCounter = 0;
+							localsCounter = 0;
+							parser.blockList.put(keyBL,s);
+
+							Stack<String> signalsNotRef = new Stack<String>();
+
+							if (parser.signalList.containsKey(keyBL)) {
+								Stack<String> tempSLStack = new Stack<String>();
+								tempSLStack = parser.signalList.get(keyBL);
+								
+								signalsNotRef = compareStacks(tempSLStack,signalRefList);
+							}						    
+							while (!signalsNotRef.isEmpty()) {
+								String sNotRef = signalsNotRef.pop();
+								System.out.println("Error at line " + parser.yy.getLine() + ": parameter " + sNotRef +" is not referenced");
+							}
+						}
+					:}
+	| block_header input_vars:e2 local_vars:e3 block_body
+	{: 
+		System.out.println("Syntax error at " + parser.yy.getLine() + ": block has no output signals"); 
+		if (keyBL!=null) {
+			parser.Signals s = parser.new Signals();
+			s.setNumIS(inputsCounter);
+			s.setNumOS(outputsCounter);
+			s.setNumLS(localsCounter);
+			inputsCounter = 0;
+			outputsCounter = 0;
+			localsCounter = 0;
+			parser.blockList.put(keyBL,s);
+
+			Stack<String> signalsNotRef = new Stack<String>();
+
+			if (parser.signalList.containsKey(keyBL)) {
+				Stack<String> tempSLStack = new Stack<String>();
+				tempSLStack = parser.signalList.get(keyBL);
+				
+				signalsNotRef = compareStacks(tempSLStack,signalRefList);
+			}						    
+			while (!signalsNotRef.isEmpty()) {
+				String sNotRef = signalsNotRef.pop();
+				System.out.println("Error at line " + parser.yy.getLine() + ": parameter " + sNotRef +" is not referenced");
+			}
+		} 
+	:}
+	;
+
+block_header ::= TK_BLOCK TK_IDENTIFIER:e1 TK_DESCRIPTION TK_STRING TK_SEMICOLON
+					{:
+						if (!parser.blockList.containsKey(e1)) {
+							keyBL = e1;
+						} else {
+							System.out.println("Error at line " + parser.yy.getLine() + ": block type redefinition");
+							keyBL = null;
+						}
+					:}
+					| TK_BLOCK TK_IDENTIFIER:e1
+					{:
+						if (!parser.blockList.containsKey(e1)) {
+							keyBL = e1;
+						} else {
+							System.out.println("Error at line " + parser.yy.getLine() + ": block type redefinition");
+							keyBL = null;
+						}
+					:} 
+					| TK_BLOCK TK_DESCRIPTION TK_STRING TK_SEMICOLON
+					{: 
+						System.out.println("Syntax error at " + (parser.yy.getLine() - 1) + ": block has no name"); 
+						keyBL = null;
+					:}
+					| TK_BLOCK 
+					{: 
+						System.out.println("Syntax error at " + parser.yy.getLine() + ": block has no name");
+						keyBL = null; 
+					:}
+					;
+	
+input_vars ::= 
+	| input_vars TK_INPUT var_definition:e1
+	{:
+		if (keyBL != null) {
+			if (parser.signalList.containsKey(keyBL)) {
+				Stack<String> tempSLStack = new Stack<String>();
+				tempSLStack = parser.signalList.get(keyBL);
+				if (!tempSLStack.contains(e1)) {
+					parser.signalList.get(keyBL).push(e1);
+					inputsCounter++;
+				} else {
+					System.out.println("Error at line " + parser.yy.getLine() + ": signal name already defined");
+				}
+			} else {
+				Stack<String> tempSLStack = new Stack<String>();
+				tempSLStack.push(e1);
+				inputsCounter++;
+				parser.signalList.put(keyBL,tempSLStack);
+			}			
+		}			
+	:}
+	;
+
+output_vars ::= TK_OUTPUT var_definition:e1
+				{:					
+					if (keyBL != null) {
+						if (parser.signalList.containsKey(keyBL)) {
+							Stack<String> tempSLStack = new Stack<String>();
+							tempSLStack = parser.signalList.get(keyBL);
+							if (!tempSLStack.contains(e1)) {
+								parser.signalList.get(keyBL).push(e1);
+								outputsCounter++;
+							} else {
+								System.out.println("Error at line " + parser.yy.getLine() + ": signal name already defined");
+							}
+						} else {
+							Stack<String> tempSLStack = new Stack<String>();
+							tempSLStack.push(e1);
+							parser.signalList.put(keyBL,tempSLStack);
+						}			
+					}				
+				:}
+	| output_vars TK_OUTPUT var_definition:e1
+	{:
+		Stack<String> tempSLStack = new Stack<String>();
+		tempSLStack = parser.signalList.get(keyBL);
+		if (!tempSLStack.contains(e1)) {
+			parser.signalList.get(keyBL).push(e1);
+			outputsCounter++;
+		} else {
+			System.out.println("Error at line " + parser.yy.getLine() + ": signal name already defined");
+		}
+	:}
+	;
+
+local_vars ::= 
+	| local_vars TK_LOCAL var_definition:e1
+	{:
+		if (keyBL != null) {
+			if (parser.signalList.containsKey(keyBL)) {
+				Stack<String> tempSLStack = new Stack<String>();
+				tempSLStack = parser.signalList.get(keyBL);
+				if (!tempSLStack.contains(e1)) {
+					parser.signalList.get(keyBL).push(e1);
+					localsCounter++;
+				} else {
+					System.out.println("Error at line " + parser.yy.getLine() + ": signal name already defined");
+				}
+			} else {
+				Stack<String> tempSLStack = new Stack<String>();
+				tempSLStack.push(e1);
+				parser.signalList.put(keyBL,tempSLStack);
+			}			
+		}
+	:};
+
+block_body ::= TK_BEGIN instruction_list TK_END TK_BLOCK TK_SEMICOLON;
+
+instruction_list ::= instruction
+	| instruction_list instruction;
+
+instruction ::= TK_IDENTIFIER:e1 TK_EQUAL expression TK_SEMICOLON
+				{:
+					if (keyBL != null) {
+						if (parser.signalList.containsKey(keyBL)) {
+							if (parser.signalList.get(keyBL).contains(e1)) {					
+								if (!signalRefList.contains(e1)) {
+									signalRefList.push(e1);
+								} 								
+							} else {
+								System.out.println("Error at line " + parser.yy.getLine() + ": signal " + e1 + " undefined");
+							}				
+						}			
+					}		
+				:}
+				;
+
+expression ::= TK_LPAR expression TK_RPAR
+	| expression TK_AND expression
+	| expression TK_OR expression
+	| TK_NOT expression
+	| TK_IDENTIFIER:e1
+	{:
+		if (keyBL != null) {
+			if (parser.signalList.containsKey(keyBL)) {
+				if (parser.signalList.get(keyBL).contains(e1)) {					
+					if (!signalRefList.contains(e1)) {
+						signalRefList.push(e1);
+					}
+					
+				} else {
+					System.out.println("Error at line " + parser.yy.getLine() + ": signal " + e1 + " undefined");
+				}				
+			}			
+		}		
+	:}
+	| TK_NUMBER ;
+

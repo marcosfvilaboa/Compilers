@@ -1,0 +1,66 @@
+import java.io.*;
+import java.lang.*;
+import java_cup.runtime.Symbol;
+
+%%
+
+%{
+	public int getLine(){
+		return yyline;
+	}
+%}
+
+%class circuit
+%full
+%line
+%ignorecase
+%cup
+
+%state COMMENT, STRING
+
+blank=[\n\t\r ]
+
+digit=[0-9]
+hexadigit=[0-9a-fA-F]
+
+number={digit}+
+hexanumber=0[Xx]{hexadigit}+
+
+identifier=[A-Za-z][A-Za-z0-9_-]*
+
+%%
+
+<YYINITIAL>{blank}+	{ /* Do nothing */ }
+<YYINITIAL>circuit	{ parser.correct_reserved_words++; return new Symbol(sym.TK_CIRCUIT); }
+<YYINITIAL>signal	{ parser.correct_reserved_words++; return new Symbol(sym.TK_SIGNAL); }
+<YYINITIAL>size		{ parser.correct_reserved_words++; return new Symbol(sym.TK_SIZE); }
+<YYINITIAL>equals	{ parser.correct_reserved_words++; return new Symbol(sym.TK_EQUALS); }
+<YYINITIAL>block	{ parser.correct_reserved_words++; return new Symbol(sym.TK_BLOCK); }
+<YYINITIAL>description	{ parser.correct_reserved_words++; return new Symbol(sym.TK_DESCRIPTION); }
+<YYINITIAL>input	{ parser.correct_reserved_words++; return new Symbol(sym.TK_INPUT); }
+<YYINITIAL>output	{ parser.correct_reserved_words++; return new Symbol(sym.TK_OUTPUT); }
+<YYINITIAL>begin	{ parser.correct_reserved_words++; return new Symbol(sym.TK_BEGIN); }
+<YYINITIAL>end		{ parser.correct_reserved_words++; return new Symbol(sym.TK_END); }
+<YYINITIAL>local	{ parser.correct_reserved_words++; return new Symbol(sym.TK_LOCAL); }
+<YYINITIAL>and		{ parser.correct_reserved_words++; return new Symbol(sym.TK_AND); }
+<YYINITIAL>or		{ parser.correct_reserved_words++; return new Symbol(sym.TK_OR); }
+<YYINITIAL>not		{ parser.correct_reserved_words++; return new Symbol(sym.TK_NOT); }
+<YYINITIAL>{number} 	{ return new Symbol(sym.TK_NUMBER, new Integer(yytext())); }
+<YYINITIAL>{hexanumber} { return new Symbol(sym.TK_NUMBER); }
+<YYINITIAL>{identifier} { parser.correct_identifiers++;  return new Symbol(sym.TK_IDENTIFIER, yytext()); }
+<YYINITIAL>\" 		{ yybegin(STRING); }
+<YYINITIAL>// 		{ yybegin(COMMENT); }
+<YYINITIAL>=		{ return new Symbol(sym.TK_EQUAL); }
+<YYINITIAL>;		{ return new Symbol(sym.TK_SEMICOLON); }
+<YYINITIAL>\(		{ return new Symbol(sym.TK_LPAR); }
+<YYINITIAL>\)		{ return new Symbol(sym.TK_RPAR); }
+<YYINITIAL>.		{ System.out.println("Error at line " + (yyline+1) + ": Unrecognized character"); }
+
+<STRING>[a-zA-Z0-9]+ 	{ /* Do nothing, parsing a string */ }
+<STRING>[\t ]+		{ /* Do nothing, parsing a string */ }
+<STRING>\" 		{ parser.correct_strings++; yybegin(YYINITIAL); return new Symbol(sym.TK_STRING); }
+<STRING>[\n\r]		{ System.out.println("Error at line " + (yyline+1) +": new line character found"); yybegin(YYINITIAL); }
+<STRING>.		{ System.out.println("Error at line " + (yyline+1) +": Unrecognized character"); }
+
+<COMMENT>[\n\r]		{ yybegin(YYINITIAL); }
+<COMMENT>.		{ /* Do nothing */ }

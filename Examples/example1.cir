@@ -1,0 +1,30 @@
+CIRCUIT circuit-01;
+
+SIGNAL primera SIZE 4;
+SIGNAL segunda SIZE 2 EQUALS 0x3;
+
+// First block
+BLOCK block_and_1
+DESCRIPTION "Single and";
+INPUT signal pin1 size 1;
+INPUT signal pin2 size 1;
+OUTPUT signal outpin1 size 1;
+BEGIN
+outpin1 = pin1 AND pin2;
+END BLOCK;
+
+// Second block
+BLOCK block_xor_4
+DESCRIPTION "Single xor";
+INPUT signal pin1 size 4;
+INPUT signal pin2 size 4;
+OUTPUT signal outpin1 size 4;
+LOCAL signal temp1 size 4;
+LOCAL signal temp2 size 4;
+BEGIN
+temp1 = (not pin1) and b; // Xor implementation
+temp2 = a and (not b);
+outpin1 = temp1 or temp2;
+END BLOCK;
+
+END circuit-01;
