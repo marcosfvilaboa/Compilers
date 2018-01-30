@@ -1,6 +1,6 @@
 # Implementation of a Compiler in JLex and CUP
 
-Created as a practice to University Degree (UOC)
+Created as a practice of University Degree (UOC)
 
 Three fase development of a JLex and CUP compiler:
 
